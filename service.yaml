@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mocktwo
+spec:
+  selector:
+    app: mocktwo
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8200
+  type: LoadBalancer
+
