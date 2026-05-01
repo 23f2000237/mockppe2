@@ -43,6 +43,7 @@ jobs:
           gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev
       - name: Pull Model from storage Bucket 
         run: |
+          gcloud auth login
           gsutil cp gs://mlops-course-project-bf98a213-f2fa-44da-a85-v1-unique/mock_oppe2/model.joblib model.joblib
 
       - name: Build Docker Image
