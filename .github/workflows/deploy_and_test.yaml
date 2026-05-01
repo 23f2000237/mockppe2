@@ -1,0 +1,67 @@
+name: Build, Deploy to GKE and stress test
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: project-bf98a213-f2fa-44da-a85
+  GAR_LOCATION: us-central1
+  REPOSITORY: my-repo
+  IMAGE: mocktwo
+  GKE_CLUSTER: mocktwo
+  GKE_REGION: us-central1
+
+jobs:
+  deploy_and_test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+          sudo apt-get install -y wrk
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/340103843137/locations/global/workloadIdentityPools/mockppe2/providers/mockppe2
+          service_account: mockppe2@project-bf98a213-f2fa-44da-a85.iam.gserviceaccount.com
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev
+      - name: Pull Model from storage Bucket 
+        run: |
+          gsutil cp gs://mlops-course-project-bf98a213-f2fa-44da-a85-v1-unique/mock_oppe2/model.joblib model.joblib
+
+      - name: Build Docker Image
+        run: |
+          docker build -t us-central1-docker.pkg.dev/project-bf98a213-f2fa-44da-a85/my-repo/mocktwo .
+
+      - name: Push Docker Image
+        run: |
+          docker push us-central1-docker.pkg.dev/project-bf98a213-f2fa-44da-a85/my-repo/mocktwo
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_REGION }}
+      - name: Deploy to GKE 
+        run: |
+          kubectl create deployment mocktwo --image=us-central1-docker.pkg.dev/project-bf98a213-f2fa-44da-a85/my-repo/mocktwo --dry-run=client -o yaml | kubectl apply -f - 
+          kubectl expose deployment mocktwo --type=LoadBalancer --port 80 --target-port 8200 --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+          kubectl apply -f hpa.yaml
